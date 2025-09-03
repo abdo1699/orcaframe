@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Enter Property Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide-icons/dist/umd/lucide.js"></script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body data-page="form"
+    class="bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white selection:bg-yellow-400/30 selection:text-yellow-100">
+    <!-- App Shell -->
+    <div class="min-h-screen flex items-center justify-center p-6">
+        <div class="glass-panel w-full max-w-2xl">
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <h1 class="title flex items-center gap-3">
+                    <i data-lucide="database"></i> New Property
+                </h1>
+                <a href="dashboard.html" class="btn-secondary inline-flex items-center gap-2">
+                    <i data-lucide="layout-dashboard"></i> Dashboard
+                </a>
+            </div>
+
+            <!-- Form -->
+            <form id="dataForm" class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <label class="field">
+                    <span><i data-lucide="building-2"></i> Property Type</span>
+                    <input id="propertyType" type="text" placeholder="e.g., Apartment, Villa" required />
+                </label>
+
+                <label class="field">
+                    <span><i data-lucide="ruler"></i> Size (sqm)</span>
+                    <input id="size" type="number" min="1" step="1" placeholder="e.g., 120" required />
+                </label>
+
+                <label class="field">
+                    <span><i data-lucide="coins"></i> Price (EGP)</span>
+                    <input id="price" type="number" min="1" step="1" placeholder="e.g., 1500000" required />
+                </label>
+
+                <label class="field">
+                    <span><i data-lucide="map-pin"></i> City</span>
+                    <input id="city" type="text" placeholder="e.g., Cairo" required />
+                </label>
+
+                <div class="md:col-span-2 flex items-center justify-end gap-3 pt-2">
+                    <button type="reset" class="btn-ghost inline-flex items-center gap-2">
+                        <i data-lucide="rotate-ccw"></i> Reset
+                    </button>
+                    <button type="submit" class="btn-primary inline-flex items-center gap-2">
+                        <i data-lucide="save"></i> Save Record
+                    </button>
+                </div>
+            </form>
+
+            <!-- Inline Status (no alerts) -->
+            <div id="inlineStatus" class="mt-6"></div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="script.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+
+</html>

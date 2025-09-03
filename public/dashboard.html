@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Elite Property Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide-icons/dist/umd/lucide.js"></script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body data-page="dashboard" class="bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white">
+    <div class="min-h-screen p-6 max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="title flex items-center gap-3">
+                <i data-lucide="bar-chart-3"></i> Elite Property Analytics
+            </h1>
+            <a href="index.html" class="btn-primary inline-flex items-center gap-2">
+                <i data-lucide="plus-circle"></i> Add Data
+            </a>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="kpi">
+                <div class="kpi-label"><i data-lucide="database"></i> Total Properties</div>
+                <div id="kpiTotal" class="kpi-value">0</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label"><i data-lucide="ruler"></i> Total Size (sqm)</div>
+                <div id="kpiSize" class="kpi-value text-green-400">0</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label"><i data-lucide="coins"></i> Total Price (EGP)</div>
+                <div id="kpiPrice" class="kpi-value text-rose-400">0</div>
+            </div>
+        </div>
+
+        <!-- Charts Grid (balanced like pro BI) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="panel">
+                <div class="panel-title"><i data-lucide="trending-up"></i> Prices by Property</div>
+                <canvas id="chartPrices"></canvas>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title"><i data-lucide="map-pin"></i> Count by City</div>
+                <canvas id="chartCities"></canvas>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title"><i data-lucide="building-2"></i> Count by Type</div>
+                <canvas id="chartTypes"></canvas>
+            </div>
+
+            <div class="panel lg:col-span-2">
+                <div class="panel-title"><i data-lucide="line-chart"></i> Price Trend (by entry time)</div>
+                <canvas id="chartTrend"></canvas>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title"><i data-lucide="layers"></i> Size vs Price</div>
+                <canvas id="chartBubble"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="script.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+
+</html>
