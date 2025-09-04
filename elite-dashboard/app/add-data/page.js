@@ -11,7 +11,7 @@ export default function AddData() {
     city: "",
     latitude: "",
     floors: "",
-    status: [],
+    status: "",
     parking_spaces: "",
   });
   const [status, setStatus] = useState("");
@@ -150,39 +150,21 @@ export default function AddData() {
             <div className="flex gap-4 mt-2">
               <label className="flex items-center gap-2">
                 <input
-                  type="checkbox"
-                  checked={
-                    Array.isArray(form.status) &&
-                    form.status.includes("in progress")
-                  }
-                  onChange={(e) => {
-                    setForm({
-                      ...form,
-                      status: e.target.checked
-                        ? [...form.status, "in progress"]
-                        : form.status.filter((s) => s !== "in progress"),
-                    });
-                  }}
+                  type="radio"
+                  name="status"
+                  value="in progress"
+                  checked={form.status === "in progress"}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
                 />
                 In Progress
               </label>
               <label className="flex items-center gap-2">
                 <input
-                  type="checkbox"
-                  checked={
-                    Array.isArray(form.status) &&
-                    form.status.includes("finished construction")
-                  }
-                  onChange={(e) => {
-                    setForm({
-                      ...form,
-                      status: e.target.checked
-                        ? [...form.status, "finished construction"]
-                        : form.status.filter(
-                            (s) => s !== "finished construction"
-                          ),
-                    });
-                  }}
+                  type="radio"
+                  name="status"
+                  value="finished construction"
+                  checked={form.status === "finished construction"}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
                 />
                 Finished Construction
               </label>
