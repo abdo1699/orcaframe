@@ -1,0 +1,16 @@
+[
+  {
+    "propertyType": "villa",
+    "size": 120,
+    "price": 3000000,
+    "city": "be7era",
+    "ts": 1756957273373
+  },
+  {
+    "propertyType": "3omara",
+    "size": 150,
+    "price": 5000000,
+    "city": "mansoura",
+    "ts": 1756957295541
+  }
+]

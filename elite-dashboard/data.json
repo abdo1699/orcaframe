@@ -1,0 +1,53 @@
+[
+  {
+    "propertyType": "villa",
+    "size": 150,
+    "price": 5000000,
+    "city": "cairo",
+    "ts": 1756998700876
+  },
+  {
+    "propertyType": "Villa",
+    "size": 150,
+    "price": 10000000,
+    "city": "mansoura",
+    "latitude": 30.0516,
+    "floors": 20,
+    "status": "finished",
+    "parking_spaces": 250,
+    "ts": 1757003200376
+  },
+  {
+    "propertyType": "appartment",
+    "size": 90,
+    "price": 50000000,
+    "city": "alexandria",
+    "latitude": 40,
+    "floors": 17,
+    "status": "finished",
+    "parking_spaces": 230,
+    "ts": 1757003390939
+  },
+  {
+    "propertyType": "appartment",
+    "size": 80,
+    "price": 6000000,
+    "city": "mansoura",
+    "latitude": 370,
+    "floors": 16,
+    "status": "finished construction",
+    "parking_spaces": 230,
+    "ts": 1757003760018
+  },
+  {
+    "propertyType": "villa",
+    "size": 85,
+    "price": 85000000,
+    "city": "dahab",
+    "latitude": 30.0561,
+    "floors": 17,
+    "status": "finished construction",
+    "parking_spaces": 250,
+    "ts": 1757004369997
+  }
+]
