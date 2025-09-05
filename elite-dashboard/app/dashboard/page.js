@@ -1,407 +1,495 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useCallback } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { Card } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
+
+import { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { AreaChartComponent } from "@/components/charts/area-chart";
+import { BarChartComponent } from "@/components/charts/bar-chart";
+import { LineChartComponent } from "@/components/charts/line-chart";
+import { PieChartComponent } from "@/components/charts/pie-chart";
+import { RadarChartComponent } from "@/components/charts/radar-chart";
+import { StatsCard } from "@/components/stats-card";
+import { Users, Home, DollarSign, ArrowRight, Plus, LogOut } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { useRouter } from 'next/navigation';
 import {
   Table,
-  TableHead,
-  TableRow,
+  TableBody,
   TableCell,
-  TableHeaderCell,
-} from "../../components/ui/table";
-import { Bar, Doughnut, Line, Scatter } from "react-chartjs-2";
-import {
-  Chart,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-} from "chart.js";
-import { useRef } from "react";
-Chart.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import Image from 'next/image';
+
+// Helper function to group data by month
+const groupByMonth = (data, valueKey = 'price') => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const result = months.map(month => ({
+    name: month,
+    value: 0,
+    count: 0
+  }));
+
+  data.forEach(item => {
+    if (!item.ts) return;
+    const date = new Date(item.ts);
+    const monthIndex = date.getMonth();
+    if (monthIndex >= 0 && monthIndex < 12) {
+      result[monthIndex].value += parseFloat(item[valueKey] || 0);
+      result[monthIndex].count += 1;
+    }
+  });
+
+  return result.map(item => ({
+    ...item,
+    value: Math.round(item.value / (item.count || 1))
+  }));
+};
+
+// Helper function to group data by status
+const groupByStatus = (data) => {
+  const statuses = ['in progress', 'finished'];
+  return statuses.map(status => ({
+    name: status.charAt(0).toUpperCase() + status.slice(1),
+    value: data.filter(item => 
+      Array.isArray(item.status) 
+        ? item.status.includes(status)
+        : item.status === status
+    ).length
+  }));
+};
+
+// Calculate stats from filtered data
+const calculateStats = (data) => {
+  const totalProperties = data.length;
+  const totalRevenue = data.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
+  const avgPrice = totalProperties > 0 ? totalRevenue / totalProperties : 0;
+  const inProgress = data.filter(item => item.status === 'in progress').length;
+  const finished = data.filter(item => item.status === 'finished').length;
+  
+  return [
+    { 
+      title: 'Total Properties', 
+      value: totalProperties.toLocaleString(), 
+      change: '', 
+      isPositive: true, 
+      icon: Home 
+    },
+    { 
+      title: 'Total Revenue', 
+      value: `$${totalRevenue.toLocaleString(undefined, {maximumFractionDigits: 0})}`, 
+      change: '', 
+      isPositive: true, 
+      icon: DollarSign 
+    },
+    { 
+      title: 'Avg. Price', 
+      value: `$${avgPrice.toLocaleString(undefined, {maximumFractionDigits: 0})}`, 
+      change: '', 
+      isPositive: true, 
+      icon: DollarSign 
+    },
+    { 
+      title: 'Status', 
+      value: `${finished} / ${inProgress + finished}`, 
+      change: '', 
+      isPositive: true, 
+      icon: Users,
+      description: 'Finished / Total' 
+    },
+  ];
+};
+
+// Helper function to format numbers with commas
+const formatNumber = (num) => {
+  return Number(num).toLocaleString();
+};
 
 export default function Dashboard() {
   const [data, setData] = useState([]);
-  const [filtered, setFiltered] = useState([]);
-  const [activeFilter, setActiveFilter] = useState(null);
-  const [toast, setToast] = useState({
-    message: "",
-    type: "success",
-    show: false,
+  const [filteredData, setFilteredData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userRole, setUserRole] = useState('viewer'); // 'viewer' or 'admin'
+  const [filters, setFilters] = useState({
+    status: 'all', // 'all', 'in progress', 'finished'
+    minPrice: '',
+    maxPrice: '',
+    city: 'all',
   });
-  const toastTimeout = useRef(null);
 
+  const router = useRouter();
+
+  // Fetch data from API
   useEffect(() => {
-    fetch("/api/data")
-      .then((res) => res.json())
-      .then((json) => {
-        setData(json.data || []);
-        setFiltered(json.data || []);
-        setToast({
-          message: "Dashboard loaded ✅",
-          type: "success",
-          show: true,
-        });
-        if (toastTimeout.current) clearTimeout(toastTimeout.current);
-        toastTimeout.current = setTimeout(
-          () => setToast((t) => ({ ...t, show: false })),
-          2000
-        );
-      });
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/data');
+        if (!response.ok) {
+          throw new Error('Failed to fetch data');
+        }
+        const result = await response.json();
+        // The API returns { ok: true, data: [...] }
+        const apiData = result.ok ? result.data : [];
+        setData(apiData);
+        setFilteredData(apiData);
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const total = data.length;
-  const totalSize = data.reduce((a, b) => a + (b.size || 0), 0);
-  const totalPrice = data.reduce((a, b) => a + (b.price || 0), 0);
-
-  // Chart data for filtered
-  const colors = [
-    "#facc15",
-    "#22c55e",
-    "#60a5fa",
-    "#f97316",
-    "#a78bfa",
-    "#f43f5e",
-    "#14b8a6",
-    "#eab308",
-  ];
-  const labels = filtered.map((d) => `${d.propertyType} • ${d.city}`);
-  const prices = filtered.map((d) => d.price);
-  const sizes = filtered.map((d) => d.size);
-  const byCity = filtered.reduce((acc, item) => {
-    const k = item.city || "Unknown";
-    acc[k] = (acc[k] || 0) + 1;
-    return acc;
-  }, {});
-  const byType = filtered.reduce((acc, item) => {
-    const k = item.propertyType || "Unknown";
-    acc[k] = (acc[k] || 0) + 1;
-    return acc;
-  }, {});
-  const sorted = [...filtered].sort((a, b) => a.ts - b.ts);
-  const handleFilter = useCallback(
-    (fn) => {
-      setFiltered(data.filter(fn));
-    },
-    [data]
-  );
-
-  const [viewerError, setViewerError] = useState("");
-  const userRole =
-    typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
-
-  function handleAddData(e) {
-    if (userRole === "view") {
-      e.preventDefault();
-      setViewerError(
-        "You are not allowed to add data. Only admins can add data."
+  // Apply filters when they change
+  useEffect(() => {
+    let result = [...data];
+    
+    if (filters.status !== 'all') {
+      result = result.filter(item => 
+        Array.isArray(item.status) 
+          ? item.status.includes(filters.status)
+          : item.status === filters.status
       );
-      setTimeout(() => setViewerError(""), 3000);
-    } else if (userRole === "edit") {
-      e.preventDefault();
-      window.location.href = "/add-data";
     }
+    
+    if (filters.minPrice) {
+      result = result.filter(item => item.price >= Number(filters.minPrice));
+    }
+    
+    if (filters.maxPrice) {
+      result = result.filter(item => item.price <= Number(filters.maxPrice));
+    }
+    
+    if (filters.city !== 'all') {
+      result = result.filter(item => item.city === filters.city);
+    }
+    
+    setFilteredData(result);
+  }, [data, filters]);
+
+  // Get unique cities for filter
+  const cities = [...new Set(data.map(item => item.city).filter(Boolean))];
+
+  // Toggle user role (this would typically come from auth context in a real app)
+  const toggleUserRole = () => {
+    const newRole = userRole === 'viewer' ? 'admin' : 'viewer';
+    setUserRole(newRole);
+    // In a real app, you would update the user role in your auth context/state
+    localStorage.setItem('userRole', newRole);
+  };
+  
+  // Handle logout
+  const handleLogout = () => {
+    // In a real app, you would clear the auth token and user data
+    localStorage.removeItem('userRole');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  };
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('userRole');
+      
+      // If no role found, redirect to login
+      if (!role) {
+        window.location.href = '/';
+        return;
+      }
+      
+      // Set the user role in state
+      setUserRole(role);
+      
+      // If somehow we got here with an invalid role, redirect to login
+      if (role !== 'admin' && role !== 'viewer') {
+        localStorage.removeItem('userRole');
+        window.location.href = '/';
+      }
+    }
+  }, []);
+
+  // Sample data for the new charts
+  const propertyTypeData = [
+    { name: 'Villa', value: filteredData.filter(item => item.propertyType?.toLowerCase() === 'villa').length },
+    { name: 'Apartment', value: filteredData.filter(item => item.propertyType?.toLowerCase().includes('apart')).length },
+    { name: 'Other', value: filteredData.filter(item => !['villa', 'apartment', 'apart'].includes(item.propertyType?.toLowerCase())).length },
+  ];
+
+  const cityPerformanceData = [
+    { subject: 'Cairo', A: filteredData.filter(item => item.city?.toLowerCase() === 'cairo').length * 10 || 0 },
+    { subject: 'Alexandria', A: filteredData.filter(item => item.city?.toLowerCase() === 'alexandria').length * 8 || 0 },
+    { subject: 'Mansoura', A: filteredData.filter(item => item.city?.toLowerCase() === 'mansoura').length * 6 || 0 },
+    { subject: 'Dahab', A: filteredData.filter(item => item.city?.toLowerCase() === 'dahab').length * 4 || 0 },
+    { subject: 'Other', A: filteredData.filter(item => !['cairo', 'alexandria', 'mansoura', 'dahab'].includes(item.city?.toLowerCase())).length * 2 || 0 },
+  ];
+
+  // Handle add data button click
+  const handleAddData = () => {
+    router.push('/add-data');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500">Error: {error}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen p-8 w-full font-sans bg-[#fcecec] text-gray-900 text-[0.95rem]">
-      {/* Toast */}
-      {toast.show && (
-        <div
-          className={`toast ${
-            toast.type === "error" ? "error" : ""
-          } show fixed top-6 right-6 z-50 bg-black/80 text-yellow-300 px-4 py-2 rounded-xl shadow-xl`}
-        >
-          {toast.message}
+    <div className="min-h-screen bg-white p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="relative h-10 w-32">
+              <Image
+                src="/orcaframe-logo.png"
+                alt="OrcaFrame Logo"
+                fill
+                className="object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+                priority
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            {userRole === 'admin' && (
+              <Button 
+                onClick={handleAddData} 
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4" />
+                Add Data
+              </Button>
+            )}
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline"
+                onClick={handleLogout}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
+          </div>
         </div>
-      )}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Image
-            src="/orcaframe-logo.png"
-            alt="Orcaframe Logo"
-            width={160}
-            height={32}
-            style={{ objectFit: "contain" }}
-          />
+        
+        {/* Filter Section */}
+        <Card className="p-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <Label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">Status</Label>
+              <select
+                id="status-filter"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                value={filters.status}
+                onChange={(e) => setFilters({...filters, status: e.target.value})}
+              >
+                <option value="all">All Status</option>
+                <option value="in progress">In Progress</option>
+                <option value="finished">Finished</option>
+              </select>
+            </div>
+            
+            <div>
+              <Label htmlFor="city-filter" className="block text-sm font-medium text-gray-700 mb-1">City</Label>
+              <select
+                id="city-filter"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                value={filters.city}
+                onChange={(e) => setFilters({...filters, city: e.target.value})}
+              >
+                <option value="all">All Cities</option>
+                {cities.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <Label htmlFor="min-price" className="block text-sm font-medium text-gray-700 mb-1">Min Price</Label>
+              <input
+                type="number"
+                id="min-price"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                placeholder="Min price"
+                value={filters.minPrice}
+                onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="max-price" className="block text-sm font-medium text-gray-700 mb-1">Max Price</Label>
+              <input
+                type="number"
+                id="max-price"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                placeholder="Max price"
+                value={filters.maxPrice}
+                onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
+              />
+            </div>
+          </div>
+        </Card>
+        
+        {/* Stats Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          {calculateStats(filteredData).map((stat, index) => (
+            <StatsCard
+              key={index}
+              title={stat.title}
+              value={stat.value}
+              description={stat.description}
+              change={stat.change}
+              isPositive={stat.isPositive}
+              icon={stat.icon}
+            />
+          ))}
         </div>
-        <div className="flex gap-2 items-center">
-          <Button onClick={handleAddData} className="cursor-pointer">
-            Add Data
-          </Button>
+
+        {/* Main Charts */}
+        <div className="grid gap-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <AreaChartComponent 
+              data={groupByMonth(filteredData, 'price')} 
+              title="Average Price by Month" 
+              valueSuffix="$"
+            />
+            <BarChartComponent 
+              data={groupByStatus(filteredData)} 
+              title="Properties by Status" 
+              dataKey="value"
+              valueSuffix=""
+            />
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <LineChartComponent 
+              data={groupByMonth(filteredData, 'size')} 
+              title="Average Size by Month (sqm)" 
+            />
+            <Card className="p-6">
+              <h3 className="text-sm font-medium mb-4">Recent Activity</h3>
+              <div className="space-y-4">
+                {filteredData
+                  .sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0))
+                  .slice(0, 4)
+                  .map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {item.propertyType || 'Property'} in {item.city || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {item.ts ? new Date(item.ts).toLocaleDateString() : 'Unknown date'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-sm text-blue-500">View</span>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          </div>
         </div>
-      </div>
-      <div className="flex gap-4 mb-8">
-        <Button
-          className={`transition cursor-pointer ${
-            activeFilter === "size" ? "bg-yellow-200 font-bold" : ""
-          }`}
-          onClick={() => {
-            handleFilter((d) => d.size > 100);
-            setActiveFilter("size");
-          }}
-        >
-          Over 100 sqm
-        </Button>
-        <Button
-          className={`transition cursor-pointer ${
-            activeFilter === "inprogress" ? "bg-green-200 font-bold" : ""
-          }`}
-          onClick={() => {
-            handleFilter((d) =>
-              Array.isArray(d.status)
-                ? d.status.includes("in progress")
-                : d.status === "in progress"
-            );
-            setActiveFilter("inprogress");
-          }}
-        >
-          In Progress
-        </Button>
-        <Button
-          className={`transition cursor-pointer ${
-            activeFilter === "finished" ? "bg-blue-200 font-bold" : ""
-          }`}
-          onClick={() => {
-            handleFilter((d) =>
-              Array.isArray(d.status)
-                ? d.status.includes("finished construction")
-                : d.status === "finished construction"
-            );
-            setActiveFilter("finished");
-          }}
-        >
-          Finished
-        </Button>
-        <Button
-          className="transition cursor-pointer"
-          onClick={() => {
-            setFiltered(data);
-            setActiveFilter(null);
-          }}
-        >
-          Clear Filters
-        </Button>
-        const [activeFilter, setActiveFilter] = useState(null);
-      </div>
-      {viewerError && (
-        <div className="rounded-xl border border-rose-500/40 bg-rose-900/40 text-rose-200 px-4 py-3 mb-4 max-w-md mx-auto text-center">
-          {viewerError}
+
+        {/* New Charts Section */}
+        <div className="grid gap-6 mt-8">
+          <div className="grid gap-6 md:grid-cols-2">
+            <PieChartComponent 
+              data={propertyTypeData} 
+              title="Property Type Distribution" 
+            />
+            <RadarChartComponent 
+              data={cityPerformanceData} 
+              title="City Performance" 
+            />
+          </div>
         </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <div className="text-sm text-gray-500 mb-1">Total Properties</div>
-          <div className="text-2xl font-bold">{filtered.length}</div>
-        </Card>
-        <Card>
-          <div className="text-sm text-gray-500 mb-1">Total Size (sqm)</div>
-          <div className="text-2xl font-bold text-green-600">
-            {filtered.reduce((a, b) => a + (b.size || 0), 0).toLocaleString()}
+
+        {/* Data Table */}
+        <Card className="mt-8">
+          <div className="p-4 border-b flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-medium">Property Listings</h3>
+              <p className="text-sm text-gray-500">Showing {filteredData.length} properties</p>
+            </div>
+            {userRole === 'admin' && (
+              <Button onClick={handleAddData} className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Add New Property
+              </Button>
+            )}
           </div>
-        </Card>
-        <Card>
-          <div className="text-sm text-gray-500 mb-1">Total Price (EGP)</div>
-          <div className="text-2xl font-bold text-rose-600">
-            {filtered.reduce((a, b) => a + (b.price || 0), 0).toLocaleString()}
-          </div>
-        </Card>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <div className="font-semibold mb-2">Prices by Property</div>
-          <div className="flex justify-center">
-            <Bar
-              data={{
-                labels,
-                datasets: [
-                  {
-                    label: "Price (EGP)",
-                    data: prices,
-                    backgroundColor: colors,
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: {
-                  x: { ticks: { color: "#222" } },
-                  y: { ticks: { color: "#222" } },
-                },
-              }}
-              width={90}
-              height={60}
-            />
-          </div>
-        </Card>
-        <Card>
-          <div className="font-semibold mb-2">Count by City</div>
-          <div className="flex justify-center">
-            <Doughnut
-              data={{
-                labels: Object.keys(byCity),
-                datasets: [
-                  { data: Object.values(byCity), backgroundColor: colors },
-                ],
-              }}
-              options={{
-                plugins: {
-                  legend: {
-                    position: "bottom",
-                    labels: { color: "#222" },
-                  },
-                },
-              }}
-              width={70}
-              height={70}
-            />
-          </div>
-        </Card>
-        <Card>
-          <div className="font-semibold mb-2">Count by Type</div>
-          <div className="flex justify-center">
-            <Bar
-              data={{
-                labels: Object.keys(byType),
-                datasets: [
-                  {
-                    label: "Count",
-                    data: Object.values(byType),
-                    backgroundColor: "#60a5fa",
-                  },
-                ],
-              }}
-              options={{
-                indexAxis: "y",
-                plugins: { legend: { display: false } },
-                scales: {
-                  x: { ticks: { color: "#222" } },
-                  y: { ticks: { color: "#222" } },
-                },
-              }}
-              width={90}
-              height={60}
-            />
-          </div>
-        </Card>
-        <Card className="lg:col-span-2">
-          <div className="font-semibold mb-2">Price Trend</div>
-          <div className="flex justify-center">
-            <Line
-              data={{
-                labels: sorted.map((d) => new Date(d.ts).toLocaleString()),
-                datasets: [
-                  {
-                    label: "Price Trend",
-                    data: sorted.map((d) => d.price),
-                    borderColor: "#facc15",
-                    backgroundColor: "rgba(250,204,21,.25)",
-                    tension: 0.35,
-                    fill: true,
-                  },
-                ],
-              }}
-              options={{
-                plugins: { legend: { display: false } },
-                scales: {
-                  x: { ticks: { color: "#222" } },
-                  y: { ticks: { color: "#222" } },
-                },
-              }}
-              width={120}
-              height={60}
-            />
-          </div>
-        </Card>
-        <Card>
-          <div className="font-semibold mb-2">Size vs Price</div>
-          <div className="flex justify-center">
-            <Scatter
-              data={{
-                datasets: [
-                  {
-                    label: "Size vs Price",
-                    data: filtered.map((d) => ({ x: d.size, y: d.price })),
-                    backgroundColor: "#22c55e",
-                  },
-                ],
-              }}
-              options={{
-                plugins: { legend: { display: false } },
-                scales: {
-                  x: {
-                    title: {
-                      display: true,
-                      text: "Size (sqm)",
-                      color: "#222",
-                    },
-                    ticks: { color: "#222" },
-                  },
-                  y: {
-                    title: {
-                      display: true,
-                      text: "Price (EGP)",
-                      color: "#222",
-                    },
-                    ticks: { color: "#222" },
-                  },
-                },
-              }}
-              width={90}
-              height={60}
-            />
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Size (sqm)</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Floors</TableHead>
+                  <TableHead>Parking</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredData.length > 0 ? (
+                  filteredData.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{item.propertyType || 'N/A'}</TableCell>
+                      <TableCell>{item.size ? formatNumber(item.size) : 'N/A'}</TableCell>
+                      <TableCell>${item.price ? formatNumber(item.price) : 'N/A'}</TableCell>
+                      <TableCell>{item.city || 'N/A'}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          item.status?.toLowerCase() === 'finished' ? 'bg-green-100 text-green-800' : 
+                          item.status?.toLowerCase() === 'in progress' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.status || 'N/A'}
+                        </span>
+                      </TableCell>
+                      <TableCell>{item.floors || 'N/A'}</TableCell>
+                      <TableCell>{item.parking_spaces || '0'}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      No properties found matching your filters
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         </Card>
       </div>
-      <Card className="mb-8">
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableHeaderCell>Type</TableHeaderCell>
-              <TableHeaderCell>Size</TableHeaderCell>
-              <TableHeaderCell>Price</TableHeaderCell>
-              <TableHeaderCell>City</TableHeaderCell>
-              <TableHeaderCell>Latitude</TableHeaderCell>
-              <TableHeaderCell>Floors</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Parking Spaces</TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <tbody>
-            {filtered.map((d, i) => (
-              <TableRow key={i}>
-                <TableCell>{d.propertyType}</TableCell>
-                <TableCell>{d.size}</TableCell>
-                <TableCell>{d.price}</TableCell>
-                <TableCell>{d.city}</TableCell>
-                <TableCell>{d.latitude}</TableCell>
-                <TableCell>{d.floors}</TableCell>
-                <TableCell>{d.status}</TableCell>
-                <TableCell>{d.parking_spaces}</TableCell>
-              </TableRow>
-            ))}
-          </tbody>
-        </Table>
-      </Card>
     </div>
   );
+
 }

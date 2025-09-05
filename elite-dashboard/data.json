@@ -49,5 +49,60 @@
     "status": "finished construction",
     "parking_spaces": 250,
     "ts": 1757004369997
+  },
+  {
+    "propertyType": "villa",
+    "size": 170,
+    "price": 9000000,
+    "city": "assyut",
+    "latitude": 50.63,
+    "floors": 23,
+    "status": "in progress",
+    "parking_spaces": 60,
+    "ts": 1757012432754
+  },
+  {
+    "propertyType": "villa",
+    "size": 120,
+    "price": 6000000,
+    "city": "cairo",
+    "latitude": 35.6,
+    "floors": 15,
+    "status": "in progress",
+    "parking_spaces": 230,
+    "ts": 1757013214932
+  },
+  {
+    "propertyType": "3omara",
+    "size": 60,
+    "price": 95000000,
+    "city": "alexandria",
+    "latitude": 0,
+    "floors": 10,
+    "status": "finished construction",
+    "parking_spaces": 8,
+    "ts": 1757013237332
+  },
+  {
+    "propertyType": "appartment",
+    "size": 90,
+    "price": 9000000,
+    "city": "mansoura",
+    "latitude": 0,
+    "floors": 12,
+    "status": "in progress",
+    "parking_spaces": 10,
+    "ts": 1757013261726
+  },
+  {
+    "propertyType": "villa",
+    "size": 120,
+    "price": 5000,
+    "city": "Cairo",
+    "latitude": 0,
+    "floors": 3,
+    "status": "in progress",
+    "parking_spaces": 25,
+    "ts": 1757098234560
   }
 ]

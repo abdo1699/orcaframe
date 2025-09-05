@@ -1,9 +1,49 @@
 "use client";
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 
-export default function AddData() {
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import Image from 'next/image';
+
+const propertyTypes = [
+  { value: "villa", label: "Villa" },
+  { value: "apartment", label: "Apartment" },
+  { value: "duplex", label: "Duplex" },
+  { value: "penthouse", label: "Penthouse" },
+  { value: "townhouse", label: "Townhouse" },
+];
+
+const statusOptions = [
+  { value: "in progress", label: "In Progress" },
+  { value: "finished", label: "Finished" },
+];
+
+function AddDataContent() {
+  const router = useRouter();
+  
+  // Check authentication status on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('userRole');
+      
+      // If no role found, redirect to login
+      if (!role) {
+        window.location.href = '/';
+        return;
+      }
+      
+      // If not admin, redirect to dashboard
+      if (role !== 'admin') {
+        window.location.href = '/dashboard';
+        return;
+      }
+    }
+  }, []);
+  
   const [form, setForm] = useState({
     propertyType: "",
     size: "",
@@ -14,201 +54,244 @@ export default function AddData() {
     status: "",
     parking_spaces: "",
   });
-  const [status, setStatus] = useState("");
-  const [toast, setToast] = useState({
-    show: false,
-    message: "",
-    type: "success",
-  });
-  const router = useRouter();
-
-  useEffect(() => {
-    // Only allow admins
-    const role = localStorage.getItem("userRole");
-    if (role !== "edit") {
-      router.replace("/dashboard");
-    }
-  }, [router]);
-
-  async function handleSubmit(e) {
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSelectChange = (name, value) => {
+    setForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus("");
-    const res = await fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const json = await res.json();
-    if (json.ok) {
-      setForm({ propertyType: "", size: "", price: "", city: "" });
-      setStatus(
-        <div className="mt-2 rounded-xl border border-emerald-500/40 bg-emerald-900/40 text-emerald-200 px-4 py-3 flex items-center gap-2">
-          <span>Data saved successfully.</span>
-        </div>
-      );
-    } else {
-      setStatus(
-        <div className="mt-2 rounded-xl border border-rose-500/40 bg-rose-900/40 text-rose-200 px-4 py-3">
-          {json.message || "Could not save entry."}
-        </div>
-      );
-      setToast({ show: true, message: "Could not save entry.", type: "error" });
+    // Validate all fields are filled
+    const requiredFields = [
+      'propertyType',
+      'size',
+      'price',
+      'city',
+      'floors',
+      'status',
+      'parking_spaces',
+    ];
+
+    for (const key of requiredFields) {
+      const value = String(form[key] ?? '').trim();
+      if (!value) {
+        toast.error('Please fill all the fields before adding a property.');
+        // Try to focus the first invalid field
+        const el = document.getElementById(key);
+        if (el && typeof el.focus === 'function') el.focus();
+        return;
+      }
     }
-    setTimeout(() => setToast({ ...toast, show: false }), 2500);
-  }
+
+    setIsSubmitting(true);
+    
+    try {
+      const response = await fetch('/api/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...form,
+          ts: Date.now(),
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('Property added successfully!');
+        router.push('/dashboard');
+      } else {
+        throw new Error('Failed to save property');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to add property. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div className="bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white min-h-screen flex items-center justify-center p-6">
-      <div className="glass-panel w-full max-w-2xl">
-        <div className="flex items-center justify-between">
-          <h1 className="title flex items-center gap-3">New Property</h1>
-          <div className="flex gap-2">
-            <Link
-              href="/dashboard"
-              className="btn-secondary inline-flex items-center gap-2"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/login"
-              className="btn-ghost inline-flex items-center gap-2"
-            >
-              Login
-            </Link>
-          </div>
-        </div>
-        <form
-          className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5"
-          onSubmit={handleSubmit}
-        >
-          <label className="field">
-            <span>Property Type</span>
-            <input
-              type="text"
-              required
-              value={form.propertyType}
-              onChange={(e) =>
-                setForm({ ...form, propertyType: e.target.value })
-              }
-              placeholder="e.g., Apartment, Villa"
-            />
-          </label>
-          <label className="field">
-            <span>Size (sqm)</span>
-            <input
-              type="number"
-              min="1"
-              required
-              value={form.size}
-              onChange={(e) => setForm({ ...form, size: e.target.value })}
-              placeholder="e.g., 120"
-            />
-          </label>
-          <label className="field">
-            <span>Price (EGP)</span>
-            <input
-              type="number"
-              min="1"
-              required
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              placeholder="e.g., 1500000"
-            />
-          </label>
-          <label className="field">
-            <span>City</span>
-            <input
-              type="text"
-              required
-              value={form.city}
-              onChange={(e) => setForm({ ...form, city: e.target.value })}
-              placeholder="e.g., Cairo"
-            />
-          </label>
-          <label className="field">
-            <span>Latitude</span>
-            <input
-              type="number"
-              step="0.0001"
-              value={form.latitude}
-              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-              placeholder="e.g., 30.0561"
-            />
-          </label>
-          <label className="field">
-            <span>Floors</span>
-            <input
-              type="number"
-              min="1"
-              value={form.floors}
-              onChange={(e) => setForm({ ...form, floors: e.target.value })}
-              placeholder="e.g., 15"
-            />
-          </label>
-          <label className="field">
-            <span>Status</span>
-            <div className="flex gap-4 mt-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="status"
-                  value="in progress"
-                  checked={form.status === "in progress"}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                />
-                In Progress
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="status"
-                  value="finished construction"
-                  checked={form.status === "finished construction"}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                />
-                Finished Construction
-              </label>
+    <div className="min-h-screen p-6 bg-white">
+      <div className="max-w-4xl mx-auto">
+        {/* Header with Logo and Actions */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="relative h-10 w-32">
+              <Image
+                src="/orcaframe-logo.png"
+                alt="OrcaFrame Logo"
+                fill
+                className="object-contain"
+                priority
+              />
             </div>
-          </label>
-          <label className="field">
-            <span>Parking Spaces</span>
-            <input
-              type="number"
-              min="0"
-              value={form.parking_spaces}
-              onChange={(e) =>
-                setForm({ ...form, parking_spaces: e.target.value })
-              }
-              placeholder="e.g., 220"
-            />
-          </label>
-          <div className="md:col-span-2 flex items-center justify-end gap-3 pt-2">
-            <button
-              type="reset"
-              className="btn-ghost"
-              onClick={() =>
-                setForm({ propertyType: "", size: "", price: "", city: "" })
-              }
-            >
-              Reset
-            </button>
-            <button type="submit" className="btn-primary">
-              Save Record
-            </button>
+            <h1 className="text-2xl font-bold text-gray-900">Add New Property</h1>
           </div>
-        </form>
-        <div className="mt-6">{status}</div>
-        {/* Toast */}
-        {toast.show && (
-          <div
-            className={`toast ${
-              toast.type === "error" ? "error" : ""
-            } show fixed bottom-6 right-6 z-50`}
-          >
-            {toast.message}
-          </div>
-        )}
+          <Button variant="outline" onClick={() => router.push('/dashboard')}>
+            Back to Dashboard
+          </Button>
+        </div>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Property Details</CardTitle>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="propertyType">Property Type</Label>
+                  <select
+                    id="propertyType"
+                    name="propertyType"
+                    value={form.propertyType}
+                    onChange={(e) => handleSelectChange('propertyType', e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value="">Select property type</option>
+                    {propertyTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    name="city"
+                    value={form.city}
+                    onChange={handleChange}
+                    placeholder="Enter city"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="size">Size (sqm)</Label>
+                  <Input
+                    id="size"
+                    name="size"
+                    type="number"
+                    value={form.size}
+                    onChange={handleChange}
+                    placeholder="Enter size in square meters"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price ($)</Label>
+                  <Input
+                    id="price"
+                    name="price"
+                    type="number"
+                    value={form.price}
+                    onChange={handleChange}
+                    placeholder="Enter price in USD"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="floors">Number of Floors</Label>
+                  <Input
+                    id="floors"
+                    name="floors"
+                    type="number"
+                    value={form.floors}
+                    onChange={handleChange}
+                    placeholder="Enter number of floors"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="parking_spaces">Parking Spaces</Label>
+                  <Input
+                    id="parking_spaces"
+                    name="parking_spaces"
+                    type="number"
+                    value={form.parking_spaces}
+                    onChange={handleChange}
+                    placeholder="Enter number of parking spaces"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <div id="status" className="flex items-center gap-6">
+                    {statusOptions.map((status) => (
+                      <label key={status.value} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="status"
+                          value={status.value}
+                          checked={form.status === status.value}
+                          onChange={(e) => handleSelectChange('status', e.target.value)}
+                          required
+                        />
+                        {status.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="latitude">Latitude (Optional)</Label>
+                  <Input
+                    id="latitude"
+                    name="latitude"
+                    type="number"
+                    step="any"
+                    value={form.latitude}
+                    onChange={handleChange}
+                    placeholder="Enter latitude"
+                  />
+                </div>
+              </div>
+            </CardContent>
+            
+            <CardFooter className="flex justify-end gap-4 border-t p-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push('/dashboard')}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Saving...' : 'Save Property'}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
       </div>
     </div>
   );
+}
+
+export default function AddDataPage() {
+  // This component is now a simple wrapper that renders the content
+  // Authentication is handled inside AddDataContent
+  return <AddDataContent />;
 }
