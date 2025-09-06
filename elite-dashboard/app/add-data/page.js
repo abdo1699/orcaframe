@@ -20,6 +20,7 @@ const propertyTypes = [
 const statusOptions = [
   { value: "in progress", label: "In Progress" },
   { value: "finished", label: "Finished" },
+  { value: "delayed", label: "Delayed" },
 ];
 
 function AddDataContent() {
@@ -131,17 +132,6 @@ function AddDataContent() {
       <div className="max-w-4xl mx-auto">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative h-12 w-40">
-              <Image
-                src="/orcaframe-logo.png"
-                alt="OrcaFrame Logo"
-                fill
-                className="object-contain"
-                priority
-              />
-            </div>
-          </div>
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Add New Property</h1>

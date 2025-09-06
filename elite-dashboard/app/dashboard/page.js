@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { BarChartComponent } from "@/components/charts/bar-chart";
-import { PieChartComponent } from "@/components/charts/pie-chart";
+import { AreaChartComponent } from "@/components/charts/area-chart";
+import { PieChartDonutActive } from "@/components/charts/pie-chart-donut";
 import { StatisticCard, TotalProjectsCard } from "@/components/ui/statistic-card";
 import { InteractiveMap } from "@/components/maps/interactive-map";
 import Sidebar from "@/components/layout/sidebar";
@@ -19,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { AdvancedFilter } from "@/components/ui/advanced-filter";
 import Image from 'next/image';
 
 // Helper: group data by month; if valueKey is 'count' we count items, else sum and avg
@@ -70,7 +72,7 @@ const calculateKpis = (data) => {
   // Status breakdown
   const onTrack = data.filter(d => (d.status || '').toLowerCase() === 'in progress').length;
   const completed = data.filter(d => (d.status || '').toLowerCase() === 'finished').length;
-  const delayed = data.filter(d => (d.status || '').toLowerCase() === 'under construction').length;
+  const delayed = data.filter(d => (d.status || '').toLowerCase() === 'delayed').length;
 
   // Growth vs last month
   const byMonthCount = groupByMonth(data, 'count');
@@ -124,10 +126,11 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [userRole, setUserRole] = useState('viewer'); // 'viewer' or 'admin'
   const [filters, setFilters] = useState({
-    status: 'all', // 'all', 'in progress', 'finished'
+    status: 'all', // 'all', 'in progress', 'finished', 'delayed'
     minPrice: '',
     maxPrice: '',
-    city: 'all',
+    selectedCities: [],
+    selectedTypes: [],
   });
 
   const router = useRouter();
@@ -177,15 +180,25 @@ export default function Dashboard() {
       result = result.filter(item => item.price <= Number(filters.maxPrice));
     }
     
-    if (filters.city !== 'all') {
-      result = result.filter(item => item.city === filters.city);
+    if (filters.selectedCities.length > 0) {
+      result = result.filter(item => filters.selectedCities.includes(item.city));
+    }
+    
+    if (filters.selectedTypes.length > 0) {
+      result = result.filter(item => {
+        const type = (item.propertyType || '').toLowerCase();
+        return filters.selectedTypes.some(selectedType => 
+          type.includes(selectedType.toLowerCase())
+        );
+      });
     }
     
     setFilteredData(result);
   }, [data, filters]);
 
-  // Get unique cities for filter
+  // Get unique cities and property types for filter
   const cities = [...new Set(data.map(item => item.city).filter(Boolean))];
+  const propertyTypes = [...new Set(data.map(item => item.propertyType).filter(Boolean))];
 
   // Toggle user role (this would typically come from auth context in a real app)
   const toggleUserRole = () => {
@@ -230,9 +243,12 @@ export default function Dashboard() {
   const propertyTypeData = [
     { name: 'Villa', value: filteredData.filter(item => (item.propertyType || '').toLowerCase() === 'villa').length },
     { name: 'Apartment', value: filteredData.filter(item => (item.propertyType || '').toLowerCase().includes('apart')).length },
+    { name: 'Duplex', value: filteredData.filter(item => (item.propertyType || '').toLowerCase() === 'duplex').length },
+    { name: 'Penthouse', value: filteredData.filter(item => (item.propertyType || '').toLowerCase() === 'penthouse').length },
+    { name: 'Townhouse', value: filteredData.filter(item => (item.propertyType || '').toLowerCase() === 'townhouse').length },
     { name: 'Other', value: filteredData.filter(item => {
       const type = (item.propertyType || '').toLowerCase();
-      return type !== 'villa' && !type.includes('apart');
+      return type !== 'villa' && !type.includes('apart') && type !== 'duplex' && type !== 'penthouse' && type !== 'townhouse';
     }).length },
   ];
 
@@ -280,20 +296,6 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative h-12 w-40">
-              <Image
-                src="/orcaframe-logo.png"
-                alt="OrcaFrame Logo"
-                fill
-                className="object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-                priority
-              />
-            </div>
-          </div>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
@@ -322,63 +324,61 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Filter Section */}
-        <Card className="p-4 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <Label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">Status</Label>
-              <select
-                id="status-filter"
-                className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                value={filters.status}
-                onChange={(e) => setFilters({...filters, status: e.target.value})}
-              >
-                <option value="all">All Status</option>
-                <option value="in progress">In Progress</option>
-                <option value="finished">Finished</option>
-              </select>
+        {/* Advanced Filter Section */}
+        <div className="mb-8">
+          <AdvancedFilter
+            cities={cities}
+            propertyTypes={propertyTypes}
+            selectedCities={filters.selectedCities}
+            selectedTypes={filters.selectedTypes}
+            onCitiesChange={(cities) => setFilters({...filters, selectedCities: cities})}
+            onTypesChange={(types) => setFilters({...filters, selectedTypes: types})}
+          />
+          
+          {/* Additional Filters */}
+          <Card className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">Status</Label>
+                <select
+                  id="status-filter"
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  value={filters.status}
+                  onChange={(e) => setFilters({...filters, status: e.target.value})}
+                >
+                  <option value="all">All Status</option>
+                  <option value="in progress">In Progress</option>
+                  <option value="finished">Finished</option>
+                  <option value="delayed">Delayed</option>
+                </select>
+              </div>
+              
+              <div>
+                <Label htmlFor="min-price" className="block text-sm font-medium text-gray-700 mb-1">Min Price</Label>
+                <input
+                  type="number"
+                  id="min-price"
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  placeholder="Min price"
+                  value={filters.minPrice}
+                  onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="max-price" className="block text-sm font-medium text-gray-700 mb-1">Max Price</Label>
+                <input
+                  type="number"
+                  id="max-price"
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                  placeholder="Max price"
+                  value={filters.maxPrice}
+                  onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
+                />
+              </div>
             </div>
-            
-            <div>
-              <Label htmlFor="city-filter" className="block text-sm font-medium text-gray-700 mb-1">City</Label>
-              <select
-                id="city-filter"
-                className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                value={filters.city}
-                onChange={(e) => setFilters({...filters, city: e.target.value})}
-              >
-                <option value="all">All Cities</option>
-                {cities.map(city => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <Label htmlFor="min-price" className="block text-sm font-medium text-gray-700 mb-1">Min Price</Label>
-              <input
-                type="number"
-                id="min-price"
-                className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                placeholder="Min price"
-                value={filters.minPrice}
-                onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="max-price" className="block text-sm font-medium text-gray-700 mb-1">Max Price</Label>
-              <input
-                type="number"
-                id="max-price"
-                className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                placeholder="Max price"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
-              />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
         
         {/* Statistic Cards */}
         <div className="grid gap-6 md:grid-cols-3 mb-8">
@@ -421,7 +421,7 @@ export default function Dashboard() {
         {/* Main Charts */}
         <div className="grid gap-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <BarChartComponent 
+            <AreaChartComponent 
               data={projectsPerMonth}
               title="Projects Added Per Month"
               dataKey="value"
@@ -436,7 +436,7 @@ export default function Dashboard() {
           </div>
           
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Recent Activity kept */}
+            {/* Recent Activity */}
             <Card className="p-6">
               <h3 className="text-sm font-medium mb-4">Recent Activity</h3>
               <div className="space-y-4">
@@ -461,36 +461,37 @@ export default function Dashboard() {
                   ))}
               </div>
             </Card>
-            {/* Real Egypt Map with Project Bubbles */}
-            <Card className="p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Projects Map</h3>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <span>High Value</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                    <span>Medium Value</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                    <span>Low Value</span>
-                  </div>
+            
+            {/* Property Type Distribution Pie Chart */}
+            <PieChartDonutActive 
+              data={propertyTypeData} 
+              title="Property Type Distribution" 
+            />
+          </div>
+          
+          {/* Large Centered Map */}
+          <Card className="p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Projects Map</h3>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span>High Value</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <span>Medium Value</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                  <span>Low Value</span>
                 </div>
               </div>
+            </div>
+            <div className="h-96 w-full">
               <InteractiveMap data={filteredData} />
-            </Card>
-          </div>
-        </div>
-
-        {/* Distribution Section */}
-        <div className="grid gap-6 mt-8 md:grid-cols-2">
-          <PieChartComponent 
-            data={propertyTypeData} 
-            title="Property Type Distribution" 
-          />
+            </div>
+          </Card>
         </div>
 
         {/* Data Table */}

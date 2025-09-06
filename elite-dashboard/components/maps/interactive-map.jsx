@@ -1,116 +1,117 @@
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
-import { Icon } from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { useEffect, useRef } from 'react';
 
-// Fix for default markers in react-leaflet
-delete Icon.Default.prototype._getIconUrl;
-Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+// Fix for default Leaflet icons not appearing
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-export function InteractiveMap({ data = [] }) {
-  // Egypt center coordinates
-  const egyptCenter = [26.8206, 30.8025];
-  
-  // Group data by city
-  const cityData = data.reduce((acc, item) => {
-    const city = item.city?.toLowerCase();
-    if (!city) return acc;
-    
+// Custom marker icon based on value
+const createCustomIcon = (value, avgPrice) => {
+  let markerColor = 'bg-gray-500'; // Default
+  let borderColor = 'border-gray-600';
+
+  if (avgPrice > 20000000) {
+    markerColor = 'bg-blue-500';
+    borderColor = 'border-blue-600';
+  } else if (avgPrice > 10000000) {
+    markerColor = 'bg-green-500';
+    borderColor = 'border-green-600';
+  } else {
+    markerColor = 'bg-yellow-500';
+    borderColor = 'border-yellow-600';
+  }
+
+  const size = Math.max(15, Math.min(40, 15 + Math.sqrt(value) / 100)); // Adjust size for Leaflet
+
+  return L.divIcon({
+    className: `custom-div-icon ${markerColor} ${borderColor} rounded-full border-2 shadow-lg flex items-center justify-center text-white font-bold text-xs`,
+    html: `<div style="width: ${size}px; height: ${size}px; line-height: ${size}px; text-align: center;">${value}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+};
+
+export function InteractiveMap({ data }) {
+  const mapRef = useRef(null);
+  // Group data by city to show aggregated markers
+  const groupedData = data.reduce((acc, item) => {
+    const city = item.city.toLowerCase();
     if (!acc[city]) {
       acc[city] = {
-        name: item.city,
-        latitude: item.latitude || 0,
-        longitude: item.longitude || 0,
-        projects: [],
+        city: item.city,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        totalProjects: 0,
         totalValue: 0,
-        count: 0
+        onTrack: 0,
+        delayed: 0,
+        completed: 0,
       };
     }
-    
-    acc[city].projects.push(item);
+    acc[city].totalProjects += 1;
     acc[city].totalValue += Number(item.price) || 0;
-    acc[city].count += 1;
-    
+    if (item.status === 'in progress') acc[city].onTrack += 1;
+    else if (item.status === 'delayed') acc[city].delayed += 1;
+    else if (item.status === 'finished') acc[city].completed += 1;
     return acc;
   }, {});
 
-  // Get bubble color based on average price
-  const getBubbleColor = (avgPrice) => {
-    if (avgPrice > 20000000) return '#3B82F6'; // Blue
-    if (avgPrice > 10000000) return '#10B981'; // Green
-    return '#F59E0B'; // Yellow
-  };
+  const mapMarkers = Object.values(groupedData).filter(
+    (city) => city.latitude && city.longitude
+  );
 
-  // Get bubble size based on total value
-  const getBubbleSize = (totalValue) => {
-    return Math.max(8, Math.min(25, 8 + Math.sqrt(totalValue) / 200));
-  };
+  // Calculate bounds to fit all markers
+  useEffect(() => {
+    if (mapRef.current && mapMarkers.length > 0) {
+      const bounds = L.latLngBounds(
+        mapMarkers.map((marker) => [marker.latitude, marker.longitude])
+      );
+      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [mapMarkers]);
 
   return (
-    <div className="w-full h-80 rounded-lg overflow-hidden border border-gray-200">
+    <div className="w-full h-80 rounded-lg overflow-hidden border border-gray-200 z-0">
       <MapContainer
-        center={egyptCenter}
+        center={[26.8206, 30.8025]} // Center of Egypt
         zoom={6}
+        scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
-        className="z-0"
+        whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        
-        {Object.values(cityData).map((city, index) => {
-          if (!city.latitude || !city.longitude) return null;
-          
-          const avgPrice = city.totalValue / city.count;
-          const bubbleColor = getBubbleColor(avgPrice);
-          const bubbleSize = getBubbleSize(city.totalValue);
-          
+        {mapMarkers.map((city, index) => {
+          const avgPrice = city.totalProjects > 0 ? city.totalValue / city.totalProjects : 0;
           return (
-            <CircleMarker
+            <Marker
               key={index}
-              center={[city.latitude, city.longitude]}
-              radius={bubbleSize}
-              pathOptions={{
-                fillColor: bubbleColor,
-                color: '#ffffff',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
-              }}
+              position={[city.latitude, city.longitude]}
+              icon={createCustomIcon(city.totalProjects, avgPrice)}
             >
               <Popup>
-                <div className="p-2">
-                  <h3 className="font-semibold text-gray-900 mb-2">{city.name}</h3>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Projects:</span>
-                      <span className="font-medium">{city.count}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Value:</span>
-                      <span className="font-medium">${(city.totalValue / 1000000).toFixed(1)}M</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Avg Price:</span>
-                      <span className="font-medium">${(avgPrice / 1000000).toFixed(1)}M</span>
-                    </div>
-                    <div className="mt-2 pt-2 border-t">
-                      <div className="text-xs text-gray-500">
-                        Status: {city.projects.filter(p => p.status === 'finished').length} finished, {' '}
-                        {city.projects.filter(p => p.status === 'in progress').length} in progress, {' '}
-                        {city.projects.filter(p => p.status === 'delayed').length} delayed
-                      </div>
-                    </div>
-                  </div>
+                <div className="font-semibold">{city.city}</div>
+                <div>Projects: {city.totalProjects}</div>
+                <div>Total Value: ${city.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div>Avg Price: ${avgPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="mt-2 text-xs">
+                  On Track: {city.onTrack} <br />
+                  Delayed: {city.delayed} <br />
+                  Completed: {city.completed}
                 </div>
               </Popup>
-            </CircleMarker>
+            </Marker>
           );
         })}
       </MapContainer>

@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
-## Getting Started
+# DataInfo Dashboard Documentation
 
-First, run the development server:
+## Project Overview
+DataInfo Dashboard is a Next.js-based analytics dashboard for visualizing construction project data. It features interactive charts, KPIs, a sidebar for navigation, and map-based visualizations.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## How to Run the Project
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Install dependencies:**
+	```bash
+	npm install
+	```
+2. **Start the development server:**
+	```bash
+	npm run dev
+	```
+3. **Open in browser:**
+	Visit [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Recent Updates & Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### General Changes
+- Company name changed to **DataInfo** throughout the app.
+- Sidebar added for improved navigation.
+- Data now includes entries from different months for better visualizations.
 
-## Learn More
+### Dashboard Visuals
+1. **Top Page KPIs**
+	- Replaced previous KPIs with:
+	  - **Total Projects** (e.g., 152, +12% vs last month) with breakdown by status: On Track / Delayed / Completed. White background used for this KPI.
+	  - **Total Estimated Construction Value** (e.g., $250M, +5% Growth).
+	  - **Average Project Size** (m²).
+	- Statistic Cards inspired by [reui.io/blocks](https://reui.io/blocks) "Statistic Cards".
+2. **Projects Added Per Month**
+	- Replaces "Average Price by Month" visual.
+3. **Market Size by Location (in $)**
+	- Replaces "Properties by Status" visual.
+4. **Map Visual**
+	- Added map visualization with bubbles for location-based data.
+5. **Removed Visuals**
+	- Removed "Average Size by Month" and "City Performance" visuals.
+6. **Recent Activity & Property Type Distribution**
+	- Kept these visuals. Property type distribution visual updated for consistent colors and format. Apartment % bug fixed.
+7. **Table Visual**
+	- Added an Edit button to display all data columns. (Edit functionality is UI only, not functional yet.)
 
-To learn more about Next.js, take a look at the following resources:
+## Libraries Used
+- Next.js
+- Chart.js / Recharts (for charts)
+- React Leaflet or similar (for map visual)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Folder Structure
+- `app/` - Main application pages
+- `components/` - Reusable UI components (charts, cards, sidebar, etc.)
+- `lib/` - Utility functions
+- `public/` - Static assets
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Customization
+- Update data in `data.json` for new months or projects.
+- Modify visuals in `components/charts/` and `components/ui/` as needed.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Contact
+For questions or contributions, open an issue or pull request on [GitHub](https://github.com/abdo1699/DataInfo).

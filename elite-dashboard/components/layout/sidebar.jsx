@@ -41,8 +41,8 @@ export default function Sidebar({ onLogout }) {
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 border-r bg-white min-h-screen sticky top-0">
       <div className="p-6 flex items-center gap-3 border-b">
-        <div className="relative h-8 w-28">
-          <Image src="/orcaframe-logo.png" alt="OrcaFrame" fill className="object-contain" />
+        <div className="relative h-8 w-32">
+          <Image src="/Orcaframe Logo 500x100 (1).png" alt="OrcaFrame" fill className="object-contain" />
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-6 overflow-y-auto">
