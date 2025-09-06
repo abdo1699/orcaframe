@@ -53,6 +53,7 @@ function AddDataContent() {
     floors: "",
     status: "",
     parking_spaces: "",
+    date: "",
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,6 +100,7 @@ function AddDataContent() {
     setIsSubmitting(true);
     
     try {
+      const ts = form.date ? new Date(form.date).getTime() : Date.now();
       const response = await fetch('/api/save', {
         method: 'POST',
         headers: {
@@ -106,7 +108,7 @@ function AddDataContent() {
         },
         body: JSON.stringify({
           ...form,
-          ts: Date.now(),
+          ts,
         }),
       });
 
@@ -127,10 +129,10 @@ function AddDataContent() {
   return (
     <div className="min-h-screen p-6 bg-white">
       <div className="max-w-4xl mx-auto">
-        {/* Header with Logo and Actions */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
-            <div className="relative h-10 w-32">
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative h-12 w-40">
               <Image
                 src="/orcaframe-logo.png"
                 alt="OrcaFrame Logo"
@@ -139,11 +141,16 @@ function AddDataContent() {
                 priority
               />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Add New Property</h1>
           </div>
-          <Button variant="outline" onClick={() => router.push('/dashboard')}>
-            Back to Dashboard
-          </Button>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Add New Property</h1>
+              <p className="text-gray-600 mt-1">Add a new construction project to your portfolio</p>
+            </div>
+            <Button variant="outline" onClick={() => router.push('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
         
         <Card>
@@ -198,14 +205,14 @@ function AddDataContent() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price ($)</Label>
+                  <Label htmlFor="price">Price (EGP)</Label>
                   <Input
                     id="price"
                     name="price"
                     type="number"
                     value={form.price}
                     onChange={handleChange}
-                    placeholder="Enter price in USD"
+                    placeholder="Enter price in EGP"
                     required
                   />
                 </div>
@@ -265,6 +272,19 @@ function AddDataContent() {
                     value={form.latitude}
                     onChange={handleChange}
                     placeholder="Enter latitude"
+                  />
+                </div>
+
+                {/* Optional Date to place data in specific months */}
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date (optional)</Label>
+                  <Input
+                    id="date"
+                    name="date"
+                    type="date"
+                    value={form.date}
+                    onChange={handleChange}
+                    placeholder="Select date"
                   />
                 </div>
               </div>

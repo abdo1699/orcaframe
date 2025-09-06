@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { AreaChartComponent } from "@/components/charts/area-chart";
 import { BarChartComponent } from "@/components/charts/bar-chart";
-import { LineChartComponent } from "@/components/charts/line-chart";
 import { PieChartComponent } from "@/components/charts/pie-chart";
-import { RadarChartComponent } from "@/components/charts/radar-chart";
-import { StatsCard } from "@/components/stats-card";
-import { Users, Home, DollarSign, ArrowRight, Plus, LogOut } from 'lucide-react';
+import { StatisticCard, TotalProjectsCard } from "@/components/ui/statistic-card";
+import { InteractiveMap } from "@/components/maps/interactive-map";
+import Sidebar from "@/components/layout/sidebar";
+import { Plus, LogOut, Briefcase, DollarSign, Home, Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
 import {
@@ -19,11 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import Image from 'next/image';
 
-// Helper function to group data by month
+// Helper: group data by month; if valueKey is 'count' we count items, else sum and avg
 const groupByMonth = (data, valueKey = 'price') => {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const result = months.map(month => ({
@@ -37,15 +35,17 @@ const groupByMonth = (data, valueKey = 'price') => {
     const date = new Date(item.ts);
     const monthIndex = date.getMonth();
     if (monthIndex >= 0 && monthIndex < 12) {
-      result[monthIndex].value += parseFloat(item[valueKey] || 0);
+      if (valueKey === 'count') {
+        result[monthIndex].value += 1;
+      } else {
+        result[monthIndex].value += parseFloat(item[valueKey] || 0);
+      }
       result[monthIndex].count += 1;
     }
   });
 
-  return result.map(item => ({
-    ...item,
-    value: Math.round(item.value / (item.count || 1))
-  }));
+  if (valueKey === 'count') return result; // already counts per month
+  return result.map(item => ({ ...item, value: Math.round(item.value / (item.count || 1)) }));
 };
 
 // Helper function to group data by status
@@ -61,45 +61,55 @@ const groupByStatus = (data) => {
   }));
 };
 
-// Calculate stats from filtered data
-const calculateStats = (data) => {
-  const totalProperties = data.length;
-  const totalRevenue = data.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
-  const avgPrice = totalProperties > 0 ? totalRevenue / totalProperties : 0;
-  const inProgress = data.filter(item => item.status === 'in progress').length;
-  const finished = data.filter(item => item.status === 'finished').length;
-  
-  return [
-    { 
-      title: 'Total Properties', 
-      value: totalProperties.toLocaleString(), 
-      change: '', 
-      isPositive: true, 
-      icon: Home 
-    },
-    { 
-      title: 'Total Revenue', 
-      value: `$${totalRevenue.toLocaleString(undefined, {maximumFractionDigits: 0})}`, 
-      change: '', 
-      isPositive: true, 
-      icon: DollarSign 
-    },
-    { 
-      title: 'Avg. Price', 
-      value: `$${avgPrice.toLocaleString(undefined, {maximumFractionDigits: 0})}`, 
-      change: '', 
-      isPositive: true, 
-      icon: DollarSign 
-    },
-    { 
-      title: 'Status', 
-      value: `${finished} / ${inProgress + finished}`, 
-      change: '', 
-      isPositive: true, 
-      icon: Users,
-      description: 'Finished / Total' 
-    },
-  ];
+// Calculate new KPI stats and growth vs last month
+const calculateKpis = (data) => {
+  const totalProjects = data.length;
+  const totalValue = data.reduce((sum, d) => sum + (Number(d.price) || 0), 0);
+  const avgSize = totalProjects ? (data.reduce((s, d) => s + (Number(d.size) || 0), 0) / totalProjects) : 0;
+
+  // Status breakdown
+  const onTrack = data.filter(d => (d.status || '').toLowerCase() === 'in progress').length;
+  const completed = data.filter(d => (d.status || '').toLowerCase() === 'finished').length;
+  const delayed = data.filter(d => (d.status || '').toLowerCase() === 'under construction').length;
+
+  // Growth vs last month
+  const byMonthCount = groupByMonth(data, 'count');
+  const now = new Date();
+  const thisM = now.getMonth();
+  const lastM = (thisM - 1 + 12) % 12;
+  const thisMonthCount = byMonthCount[thisM]?.value || 0;
+  const lastMonthCount = byMonthCount[lastM]?.value || 0;
+  const projectsGrowth = lastMonthCount === 0 ? (thisMonthCount > 0 ? 100 : 0) : ((thisMonthCount - lastMonthCount) / lastMonthCount) * 100;
+
+  // Value growth (sum of price per month)
+  const byMonthValueRaw = data.reduce((acc, d) => {
+    if (!d.ts) return acc;
+    const m = new Date(d.ts).getMonth();
+    acc[m] = (acc[m] || 0) + (Number(d.price) || 0);
+    return acc;
+  }, {});
+  const thisMonthValue = byMonthValueRaw[thisM] || 0;
+  const lastMonthValue = byMonthValueRaw[lastM] || 0;
+  const valueGrowth = lastMonthValue === 0 ? (thisMonthValue > 0 ? 100 : 0) : ((thisMonthValue - lastMonthValue) / lastMonthValue) * 100;
+
+  // Avg size growth
+  const byMonthSizeAgg = data.reduce((acc, d) => {
+    if (!d.ts) return acc;
+    const m = new Date(d.ts).getMonth();
+    acc[m] = acc[m] || { sum: 0, c: 0 };
+    acc[m].sum += (Number(d.size) || 0);
+    acc[m].c += 1;
+    return acc;
+  }, {});
+  const thisMonthAvgSize = byMonthSizeAgg[thisM] ? (byMonthSizeAgg[thisM].sum / byMonthSizeAgg[thisM].c) : 0;
+  const lastMonthAvgSize = byMonthSizeAgg[lastM] ? (byMonthSizeAgg[lastM].sum / byMonthSizeAgg[lastM].c) : 0;
+  const avgSizeGrowth = lastMonthAvgSize === 0 ? (thisMonthAvgSize > 0 ? 100 : 0) : ((thisMonthAvgSize - lastMonthAvgSize) / lastMonthAvgSize) * 100;
+
+  return {
+    totalProjects: { total: totalProjects, growth: projectsGrowth, onTrack, delayed, completed },
+    totalValue: { total: totalValue, growth: valueGrowth },
+    avgSize: { value: avgSize, growth: avgSizeGrowth },
+  };
 };
 
 // Helper function to format numbers with commas
@@ -216,20 +226,28 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Sample data for the new charts
+  // Pie distribution with corrected apartment detection and consistent colors
   const propertyTypeData = [
-    { name: 'Villa', value: filteredData.filter(item => item.propertyType?.toLowerCase() === 'villa').length },
-    { name: 'Apartment', value: filteredData.filter(item => item.propertyType?.toLowerCase().includes('apart')).length },
-    { name: 'Other', value: filteredData.filter(item => !['villa', 'apartment', 'apart'].includes(item.propertyType?.toLowerCase())).length },
+    { name: 'Villa', value: filteredData.filter(item => (item.propertyType || '').toLowerCase() === 'villa').length },
+    { name: 'Apartment', value: filteredData.filter(item => (item.propertyType || '').toLowerCase().includes('apart')).length },
+    { name: 'Other', value: filteredData.filter(item => {
+      const type = (item.propertyType || '').toLowerCase();
+      return type !== 'villa' && !type.includes('apart');
+    }).length },
   ];
 
-  const cityPerformanceData = [
-    { subject: 'Cairo', A: filteredData.filter(item => item.city?.toLowerCase() === 'cairo').length * 10 || 0 },
-    { subject: 'Alexandria', A: filteredData.filter(item => item.city?.toLowerCase() === 'alexandria').length * 8 || 0 },
-    { subject: 'Mansoura', A: filteredData.filter(item => item.city?.toLowerCase() === 'mansoura').length * 6 || 0 },
-    { subject: 'Dahab', A: filteredData.filter(item => item.city?.toLowerCase() === 'dahab').length * 4 || 0 },
-    { subject: 'Other', A: filteredData.filter(item => !['cairo', 'alexandria', 'mansoura', 'dahab'].includes(item.city?.toLowerCase())).length * 2 || 0 },
-  ];
+  // Projects per month (count)
+  const projectsPerMonth = groupByMonth(filteredData, 'count');
+
+  // Market size by location ($)
+  const marketByLocation = Object.values(
+    filteredData.reduce((acc, d) => {
+      const key = (d.city || 'Other');
+      acc[key] = acc[key] || { name: key, value: 0 };
+      acc[key].value += Number(d.price) || 0;
+      return acc;
+    }, {})
+  ).sort((a,b) => b.value - a.value).slice(0, 8);
 
   // Handle add data button click
   const handleAddData = () => {
@@ -252,12 +270,18 @@ export default function Dashboard() {
     );
   }
 
+  const kpis = calculateKpis(filteredData);
+
   return (
-    <div className="min-h-screen bg-white p-6">
+    <div className="min-h-screen bg-white">
+      <div className="flex">
+        <Sidebar onLogout={handleLogout} />
+        <div className="flex-1 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative h-10 w-32">
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative h-12 w-40">
               <Image
                 src="/orcaframe-logo.png"
                 alt="OrcaFrame Logo"
@@ -269,8 +293,12 @@ export default function Dashboard() {
                 priority
               />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
           </div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
+              <p className="text-gray-600 mt-1">Monitor your construction projects across Egypt</p>
+            </div>
           <div className="flex items-center gap-4">
             {userRole === 'admin' && (
               <Button 
@@ -352,42 +380,63 @@ export default function Dashboard() {
           </div>
         </Card>
         
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          {calculateStats(filteredData).map((stat, index) => (
-            <StatsCard
-              key={index}
-              title={stat.title}
-              value={stat.value}
-              description={stat.description}
-              change={stat.change}
-              isPositive={stat.isPositive}
-              icon={stat.icon}
-            />
-          ))}
+        {/* Statistic Cards */}
+        <div className="grid gap-6 md:grid-cols-3 mb-8">
+          {/* KPI 1: Total Projects with Status Breakdown */}
+          <TotalProjectsCard 
+            totalProjects={kpis.totalProjects.total}
+            change={`+${kpis.totalProjects.growth.toFixed(1)}% vs last month`}
+            changeType={kpis.totalProjects.growth >= 0 ? 'positive' : 'negative'}
+            onTrack={kpis.totalProjects.onTrack}
+            delayed={kpis.totalProjects.delayed}
+            completed={kpis.totalProjects.completed}
+            dateRange="From Jan 01 - Jul 30, 2024"
+          />
+          
+          {/* KPI 2: Total Estimated Construction Value */}
+          <StatisticCard 
+            title="Total Estimated Construction Value"
+            value={`$${kpis.totalValue.total.toLocaleString(undefined,{maximumFractionDigits:0})}`}
+            change={`+${kpis.totalValue.growth.toFixed(1)}% Growth`}
+            changeType={kpis.totalValue.growth >= 0 ? 'positive' : 'negative'}
+            icon={DollarSign}
+            iconColor="text-blue-600"
+            bgColor="bg-blue-50"
+            dateRange="From Jan 01 - Jul 30, 2024"
+          />
+          
+          {/* KPI 3: Average Project Size */}
+          <StatisticCard 
+            title="Average Project Size (m²)"
+            value={Math.round(kpis.avgSize.value).toLocaleString()}
+            change={`+${kpis.avgSize.growth.toFixed(1)}%`}
+            changeType={kpis.avgSize.growth >= 0 ? 'positive' : 'negative'}
+            icon={Home}
+            iconColor="text-green-600"
+            bgColor="bg-green-50"
+            dateRange="From Jan 01 - Jul 30, 2024"
+          />
         </div>
 
         {/* Main Charts */}
         <div className="grid gap-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <AreaChartComponent 
-              data={groupByMonth(filteredData, 'price')} 
-              title="Average Price by Month" 
-              valueSuffix="$"
-            />
             <BarChartComponent 
-              data={groupByStatus(filteredData)} 
-              title="Properties by Status" 
+              data={projectsPerMonth}
+              title="Projects Added Per Month"
               dataKey="value"
               valueSuffix=""
+            />
+            <BarChartComponent 
+              data={marketByLocation}
+              title="Market Size by Location ($)"
+              dataKey="value"
+              valueSuffix="$"
             />
           </div>
           
           <div className="grid gap-6 md:grid-cols-2">
-            <LineChartComponent 
-              data={groupByMonth(filteredData, 'size')} 
-              title="Average Size by Month (sqm)" 
-            />
+            {/* Recent Activity kept */}
             <Card className="p-6">
               <h3 className="text-sm font-medium mb-4">Recent Activity</h3>
               <div className="space-y-4">
@@ -412,21 +461,36 @@ export default function Dashboard() {
                   ))}
               </div>
             </Card>
+            {/* Real Egypt Map with Project Bubbles */}
+            <Card className="p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Projects Map</h3>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <span>High Value</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span>Medium Value</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <span>Low Value</span>
+                  </div>
+                </div>
+              </div>
+              <InteractiveMap data={filteredData} />
+            </Card>
           </div>
         </div>
 
-        {/* New Charts Section */}
-        <div className="grid gap-6 mt-8">
-          <div className="grid gap-6 md:grid-cols-2">
-            <PieChartComponent 
-              data={propertyTypeData} 
-              title="Property Type Distribution" 
-            />
-            <RadarChartComponent 
-              data={cityPerformanceData} 
-              title="City Performance" 
-            />
-          </div>
+        {/* Distribution Section */}
+        <div className="grid gap-6 mt-8 md:grid-cols-2">
+          <PieChartComponent 
+            data={propertyTypeData} 
+            title="Property Type Distribution" 
+          />
         </div>
 
         {/* Data Table */}
@@ -454,6 +518,7 @@ export default function Dashboard() {
                   <TableHead>Status</TableHead>
                   <TableHead>Floors</TableHead>
                   <TableHead>Parking</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -475,6 +540,9 @@ export default function Dashboard() {
                       </TableCell>
                       <TableCell>{item.floors || 'N/A'}</TableCell>
                       <TableCell>{item.parking_spaces || '0'}</TableCell>
+                      <TableCell>
+                        <button className="text-blue-600 hover:underline text-sm">Edit</button>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
@@ -490,6 +558,8 @@ export default function Dashboard() {
         </Card>
       </div>
     </div>
+        </div>
+      </div>
+    </div>
   );
-
 }
